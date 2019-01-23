@@ -1,6 +1,7 @@
 #pragma once
 
 #include "LineSegment.h"
+#include <vector>
 
 namespace crushedpixel {
 
@@ -39,7 +40,13 @@ public:
 		/**
 		 * Path ends are rounded off.
 		 */
-		ROUND
+		ROUND,
+		/**
+		 * Path ends are connected according to the JointStyle.
+		 * When using this EndCapStyle, don't specify the common start/end point twice,
+		 * as Polyline2D connects the first and last input point itself.
+		 */
+		JOINED
 	};
 
 	/**
@@ -59,6 +66,15 @@ public:
 	static std::vector<Vec2> create(const std::vector<Vec2> &points, Vec2 thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
 	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+		std::vector<Vec2> vertices;
+		create(vertices, points, thickness, jointStyle, endCapStyle);
+		return vertices;
+	}
+
+	static size_t create(std::vector<Vec2> &vertices, const std::vector<Vec2> &points, Vec2 thickness,
+	                     JointStyle jointStyle = JointStyle::MITER,
+	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+		auto numVerticesBefore = vertices.size();
 
 		// operate on half the thickness to make our lives easier
 		thickness = thickness / 2;
@@ -69,168 +85,63 @@ public:
 			segments.emplace_back(LineSegment(points[i], points[i + 1]), thickness);
 		}
 
-		std::vector<Vec2> vertices;
+		if (endCapStyle == EndCapStyle::JOINED) {
+			// create a connecting segment from the last to the first point
+			segments.emplace_back(LineSegment(points[points.size() - 1], points[0]), thickness);
+		}
 
 		Vec2 nextStart1, nextStart2;
 		Vec2 start1, start2, end1, end2;
 
+		// calculate the path's global start and end points
+		auto &firstSegment = segments[0];
+		auto &lastSegment = segments[segments.size() - 1];
+
+		auto pathStart1 = firstSegment.edge1.a;
+		auto pathStart2 = firstSegment.edge2.a;
+		auto pathEnd1 = lastSegment.edge1.b;
+		auto pathEnd2 = lastSegment.edge2.b;
+
+		// handle different end cap styles
+		if (endCapStyle == EndCapStyle::SQUARE) {
+			// extend the start/end points by half the thickness
+			pathStart1 = pathStart1 - (firstSegment.edge1.direction() * thickness);
+			pathStart2 = pathStart2 - (firstSegment.edge2.direction() * thickness);
+			pathEnd1 = pathEnd1 + (lastSegment.edge1.direction() * thickness);
+			pathEnd2 = pathEnd2 + (lastSegment.edge2.direction() * thickness);
+
+		} else if (endCapStyle == EndCapStyle::ROUND) {
+			// draw half circle end caps
+			createTriangleFan(vertices, firstSegment.center.a, firstSegment.center.a,
+			                  firstSegment.edge1.a, firstSegment.edge2.a, false);
+			createTriangleFan(vertices, lastSegment.center.b, lastSegment.center.b,
+			                  lastSegment.edge1.b, lastSegment.edge2.b, true);
+
+		} else if (endCapStyle == EndCapStyle::JOINED) {
+			// join the last (connecting) segment and the first segment
+			createJoint(vertices, lastSegment, firstSegment, jointStyle,
+			            pathEnd1, pathEnd2, pathStart1, pathStart2);
+		}
+
+		// generate mesh data for path segments
 		for (size_t i = 0; i < segments.size(); i++) {
 			auto &segment = segments[i];
 
 			// calculate start
 			if (i == 0) {
 				// this is the first segment
-				start1 = segment.edge1.a;
-				start2 = segment.edge2.a;
-
-				if (endCapStyle == EndCapStyle::SQUARE) {
-					// expand the line backwards by half the thickness
-					start1 = start1 - (segment.edge1.direction() * thickness);
-					start2 = start2 - (segment.edge2.direction() * thickness);
-
-				} else if (endCapStyle == EndCapStyle::ROUND) {
-					// create half circle end cap
-					createTriangleFan(vertices, segment.center.a, segment.center.a,
-					                  segment.edge1.a, segment.edge2.a, false);
-				}
+				start1 = pathStart1;
+				start2 = pathStart2;
 			}
 
 			if (i + 1 == segments.size()) {
 				// this is the last segment
-				end1 = segment.edge1.b;
-				end2 = segment.edge2.b;
-
-				if (endCapStyle == EndCapStyle::SQUARE) {
-					// expand the line by half the thickness
-					end1 = end1 + (segment.edge1.direction() * thickness);
-					end2 = end2 + (segment.edge2.direction() * thickness);
-
-				} else if (endCapStyle == EndCapStyle::ROUND) {
-					// create half circle end cap
-					createTriangleFan(vertices, segment.center.b, segment.center.b,
-					                  segment.edge1.b, segment.edge2.b, true);
-				}
+				end1 = pathEnd1;
+				end2 = pathEnd2;
 
 			} else {
-				auto &nextSegment = segments[i + 1];
-
-				auto _jointStyle = jointStyle;
-
-				// calculate the angle between the two line segments
-				auto dir1 = segment.center.direction();
-				auto dir2 = nextSegment.center.direction();
-
-				auto angle = Vec2::angle(dir1, dir2);
-
-				// wrap the angle around the 180° mark if it exceeds 90°
-				// for minimum angle detection
-				auto wrappedAngle = angle;
-				if (wrappedAngle > pi / 2) {
-					wrappedAngle = pi - wrappedAngle;
-				}
-
-				if (_jointStyle == JointStyle::MITER && wrappedAngle < miterMinAngle) {
-					// the minimum angle for mitered joints wasn't exceeded.
-					// to avoid the intersection point being extremely far out,
-					// thus producing an enormous joint like a rasta on 4/20,
-					// we render the joint beveled instead.
-					_jointStyle = JointStyle::BEVEL;
-				}
-
-				if (_jointStyle == JointStyle::MITER) {
-					// calculate each edge's intersection point
-					// with the next segment's central line
-					auto sec1 = LineSegment::intersection(segment.edge1, nextSegment.edge1, true);
-					auto sec2 = LineSegment::intersection(segment.edge2, nextSegment.edge2, true);
-
-					// there is always an intersection point,
-					// as we require a minimum angle for mitered joints
-					end1 = *sec1;
-					end2 = *sec2;
-
-					nextStart1 = end1;
-					nextStart2 = end2;
-
-				} else {
-					// joint style is either BEVEL or ROUND
-
-					// find out which are the inner edges for this joint
-					auto x1 = dir1.x;
-					auto x2 = dir2.x;
-					auto y1 = dir1.y;
-					auto y2 = dir2.y;
-
-					auto clockwise = x1 * y2 - x2 * y1 < 0;
-
-					LineSegment *inner1, *inner2, *outer1, *outer2;
-
-					// as the normal vector is rotated counter-clockwise,
-					// the first edge lies to the left
-					// from the central line's perspective,
-					// and the second one to the right.
-					if (clockwise) {
-						outer1 = &segment.edge1;
-						outer2 = &nextSegment.edge1;
-						inner1 = &segment.edge2;
-						inner2 = &nextSegment.edge2;
-					} else {
-						outer1 = &segment.edge2;
-						outer2 = &nextSegment.edge2;
-						inner1 = &segment.edge1;
-						inner2 = &nextSegment.edge1;
-					}
-
-					// calculate the intersection point of the inner edges
-					auto innerSecOpt = LineSegment::intersection(*inner1, *inner2, false);
-
-					auto innerSec = innerSecOpt
-					                ? *innerSecOpt
-					                // for parallel lines, simply connect them directly
-					                : inner1->b;
-
-					// if there's no inner intersection, flip
-					// the next start position for near-180° turns
-					Vec2 innerStart;
-					if (innerSecOpt) {
-						innerStart = innerSec;
-					} else if (angle > pi / 2) {
-						innerStart = outer1->b;
-					} else {
-						innerStart = inner1->b;
-					}
-
-					if (clockwise) {
-						end1 = outer1->b;
-						end2 = innerSec;
-
-						nextStart1 = outer2->a;
-						nextStart2 = innerStart;
-
-					} else {
-						end1 = innerSec;
-						end2 = outer1->b;
-
-						nextStart1 = innerStart;
-						nextStart2 = outer2->a;
-					}
-
-					// connect the intersection points according to the joint style
-
-					if (_jointStyle == JointStyle::BEVEL) {
-						// simply connect the intersection points
-						vertices.push_back(outer1->b);
-						vertices.push_back(outer2->a);
-						vertices.push_back(innerSec);
-
-					} else if (_jointStyle == JointStyle::ROUND) {
-						// draw a circle between the ends of the outer edges,
-						// centered at the actual point
-						// with half the line thickness as the radius
-						createTriangleFan(vertices, innerSec, segment.center.b, outer1->b, outer2->a, clockwise);
-					} else {
-						assert(false);
-					}
-				}
+				createJoint(vertices, segment, segments[i + 1], jointStyle,
+				            end1, end2, nextStart1, nextStart2);
 			}
 
 			// emit vertices
@@ -246,7 +157,7 @@ public:
 			start2 = nextStart2;
 		}
 
-		return vertices;
+		return vertices.size() - numVerticesBefore;
 	}
 
 private:
@@ -275,6 +186,125 @@ private:
 
 		LineSegment center, edge1, edge2;
 	};
+
+	static void createJoint(std::vector<Vec2> &vertices, const PolySegment &segment1, const PolySegment &segment2,
+	                        JointStyle jointStyle, Vec2 &end1, Vec2 &end2, Vec2 &nextStart1, Vec2 &nextStart2) {
+		// calculate the angle between the two line segments
+		auto dir1 = segment1.center.direction();
+		auto dir2 = segment2.center.direction();
+
+		auto angle = Vec2::angle(dir1, dir2);
+
+		// wrap the angle around the 180° mark if it exceeds 90°
+		// for minimum angle detection
+		auto wrappedAngle = angle;
+		if (wrappedAngle > pi / 2) {
+			wrappedAngle = pi - wrappedAngle;
+		}
+
+		if (jointStyle == JointStyle::MITER && wrappedAngle < miterMinAngle) {
+			// the minimum angle for mitered joints wasn't exceeded.
+			// to avoid the intersection point being extremely far out,
+			// thus producing an enormous joint like a rasta on 4/20,
+			// we render the joint beveled instead.
+			jointStyle = JointStyle::BEVEL;
+		}
+
+		if (jointStyle == JointStyle::MITER) {
+			// calculate each edge's intersection point
+			// with the next segment1's central line
+			auto sec1 = LineSegment::intersection(segment1.edge1, segment2.edge1, true);
+			auto sec2 = LineSegment::intersection(segment1.edge2, segment2.edge2, true);
+
+			// there is always an intersection point,
+			// as we require a minimum angle for mitered joints
+			end1 = *sec1;
+			end2 = *sec2;
+
+			nextStart1 = end1;
+			nextStart2 = end2;
+
+		} else {
+			// joint style is either BEVEL or ROUND
+
+			// find out which are the inner edges for this joint
+			auto x1 = dir1.x;
+			auto x2 = dir2.x;
+			auto y1 = dir1.y;
+			auto y2 = dir2.y;
+
+			auto clockwise = x1 * y2 - x2 * y1 < 0;
+
+			const LineSegment *inner1, *inner2, *outer1, *outer2;
+
+			// as the normal vector is rotated counter-clockwise,
+			// the first edge lies to the left
+			// from the central line's perspective,
+			// and the second one to the right.
+			if (clockwise) {
+				outer1 = &segment1.edge1;
+				outer2 = &segment2.edge1;
+				inner1 = &segment1.edge2;
+				inner2 = &segment2.edge2;
+			} else {
+				outer1 = &segment1.edge2;
+				outer2 = &segment2.edge2;
+				inner1 = &segment1.edge1;
+				inner2 = &segment2.edge1;
+			}
+
+			// calculate the intersection point of the inner edges
+			auto innerSecOpt = LineSegment::intersection(*inner1, *inner2, false);
+
+			auto innerSec = innerSecOpt
+			                ? *innerSecOpt
+			                // for parallel lines, simply connect them directly
+			                : inner1->b;
+
+			// if there's no inner intersection, flip
+			// the next start position for near-180° turns
+			Vec2 innerStart;
+			if (innerSecOpt) {
+				innerStart = innerSec;
+			} else if (angle > pi / 2) {
+				innerStart = outer1->b;
+			} else {
+				innerStart = inner1->b;
+			}
+
+			if (clockwise) {
+				end1 = outer1->b;
+				end2 = innerSec;
+
+				nextStart1 = outer2->a;
+				nextStart2 = innerStart;
+
+			} else {
+				end1 = innerSec;
+				end2 = outer1->b;
+
+				nextStart1 = innerStart;
+				nextStart2 = outer2->a;
+			}
+
+			// connect the intersection points according to the joint style
+
+			if (jointStyle == JointStyle::BEVEL) {
+				// simply connect the intersection points
+				vertices.push_back(outer1->b);
+				vertices.push_back(outer2->a);
+				vertices.push_back(innerSec);
+
+			} else if (jointStyle == JointStyle::ROUND) {
+				// draw a circle between the ends of the outer edges,
+				// centered at the actual point
+				// with half the line thickness as the radius
+				createTriangleFan(vertices, innerSec, segment1.center.b, outer1->b, outer2->a, clockwise);
+			} else {
+				assert(false);
+			}
+		}
+	}
 
 	/**
 	 * Creates a partial circle between two points.
@@ -310,7 +340,7 @@ private:
 		auto jointAngle = angle2 - angle1;
 
 		// calculate the amount of triangles to use for the joint
-		auto numTriangles = (int) std::floor(std::abs(jointAngle) / roundMinAngle);
+		auto numTriangles = std::max(1, (int) std::floor(std::abs(jointAngle) / roundMinAngle));
 
 		// calculate the angle of each triangle
 		auto triAngle = jointAngle / numTriangles;
