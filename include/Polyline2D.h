@@ -66,20 +66,13 @@ public:
 	static std::vector<Vec2> create(const std::vector<Vec2> &points, float thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
 	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
-		return create(points, {thickness, thickness}, jointStyle, endCapStyle);
-	}
-
-	template<typename Vec2>
-	static std::vector<Vec2> create(const std::vector<Vec2> &points, Vec2 thickness,
-	                                JointStyle jointStyle = JointStyle::MITER,
-	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		std::vector<Vec2> vertices;
 		create(vertices, points, thickness, jointStyle, endCapStyle);
 		return vertices;
 	}
 
 	template<typename Vec2>
-	static size_t create(std::vector<Vec2> &vertices, const std::vector<Vec2> &points, Vec2 thickness,
+	static size_t create(std::vector<Vec2> &vertices, const std::vector<Vec2> &points, float thickness,
 	                     JointStyle jointStyle = JointStyle::MITER,
 	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		auto numVerticesBefore = vertices.size();
@@ -90,11 +83,11 @@ public:
 	}
 
 	template<typename Vec2, typename OutputIterator>
-	static OutputIterator create(OutputIterator vertices, const std::vector<Vec2> &points, Vec2 thickness,
+	static OutputIterator create(OutputIterator vertices, const std::vector<Vec2> &points, float thickness,
 	                             JointStyle jointStyle = JointStyle::MITER,
 	                             EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		// operate on half the thickness to make our lives easier
-		thickness = Vec2Maths::divide(thickness, 2);
+		thickness /= 2;
 
 		// create poly segments from the points
 		std::vector<PolySegment<Vec2>> segments;
@@ -133,15 +126,15 @@ public:
 
 		} else if (endCapStyle == EndCapStyle::ROUND) {
 			// draw half circle end caps
-			vertices = createTriangleFan(vertices, firstSegment.center.a, firstSegment.center.a,
-			                             firstSegment.edge1.a, firstSegment.edge2.a, false);
-			vertices = createTriangleFan(vertices, lastSegment.center.b, lastSegment.center.b,
-			                             lastSegment.edge1.b, lastSegment.edge2.b, true);
+			createTriangleFan(vertices, firstSegment.center.a, firstSegment.center.a,
+			                  firstSegment.edge1.a, firstSegment.edge2.a, false);
+			createTriangleFan(vertices, lastSegment.center.b, lastSegment.center.b,
+			                  lastSegment.edge1.b, lastSegment.edge2.b, true);
 
 		} else if (endCapStyle == EndCapStyle::JOINED) {
 			// join the last (connecting) segment and the first segment
-			vertices = createJoint(vertices, lastSegment, firstSegment, jointStyle,
-			                       pathEnd1, pathEnd2, pathStart1, pathStart2);
+			createJoint(vertices, lastSegment, firstSegment, jointStyle,
+			            pathEnd1, pathEnd2, pathStart1, pathStart2);
 		}
 
 		// generate mesh data for path segments
@@ -161,8 +154,8 @@ public:
 				end2 = pathEnd2;
 
 			} else {
-				vertices = createJoint(vertices, segment, segments[i + 1], jointStyle,
-				                       end1, end2, nextStart1, nextStart2);
+				createJoint(vertices, segment, segments[i + 1], jointStyle,
+				            end1, end2, nextStart1, nextStart2);
 			}
 
 			// emit vertices
@@ -198,7 +191,7 @@ private:
 
 	template<typename Vec2>
 	struct PolySegment {
-		PolySegment(const LineSegment<Vec2> &center, const Vec2 &thickness) :
+		PolySegment(const LineSegment<Vec2> &center, float thickness) :
 				center(center),
 				// calculate the segment's outer edges by offsetting
 				// the central line by the normal vector
@@ -326,7 +319,7 @@ private:
 				// draw a circle between the ends of the outer edges,
 				// centered at the actual point
 				// with half the line thickness as the radius
-				vertices = createTriangleFan(vertices, innerSec, segment1.center.b, outer1->b, outer2->a, clockwise);
+				createTriangleFan(vertices, innerSec, segment1.center.b, outer1->b, outer2->a, clockwise);
 			} else {
 				assert(false);
 			}
