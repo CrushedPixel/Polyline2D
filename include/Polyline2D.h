@@ -56,13 +56,19 @@ public:
 	 * @param jointStyle The path's joint style.
 	 * @param endCapStyle The path's end cap style.
 	 * @return The vertices describing the path.
+	 * @tparam Vec2 The vector type to use for the vertices.
+	 *              Must have public non-const float fields "x" and "y".
+	 *              Must have a two-args constructor taking x and y values.
+	 *              See crushedpixel::Vec2 for a type that satisfies these requirements.
 	 */
+	template<typename Vec2>
 	static std::vector<Vec2> create(const std::vector<Vec2> &points, float thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
 	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		return create(points, {thickness, thickness}, jointStyle, endCapStyle);
 	}
 
+	template<typename Vec2>
 	static std::vector<Vec2> create(const std::vector<Vec2> &points, Vec2 thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
 	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
@@ -71,27 +77,32 @@ public:
 		return vertices;
 	}
 
+	template<typename Vec2>
 	static size_t create(std::vector<Vec2> &vertices, const std::vector<Vec2> &points, Vec2 thickness,
 	                     JointStyle jointStyle = JointStyle::MITER,
 	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		auto numVerticesBefore = vertices.size();
 
 		// operate on half the thickness to make our lives easier
-		thickness = thickness / 2;
+		thickness = Vec2Maths::divide(thickness, 2);
 
 		// create poly segments from the points
-		std::vector<PolySegment> segments;
+		std::vector<PolySegment<Vec2>> segments;
 		for (size_t i = 0; i + 1 < points.size(); i++) {
-			segments.emplace_back(LineSegment(points[i], points[i + 1]), thickness);
+			segments.emplace_back(LineSegment<Vec2>(points[i], points[i + 1]), thickness);
 		}
 
 		if (endCapStyle == EndCapStyle::JOINED) {
 			// create a connecting segment from the last to the first point
-			segments.emplace_back(LineSegment(points[points.size() - 1], points[0]), thickness);
+			segments.emplace_back(LineSegment<Vec2>(points[points.size() - 1], points[0]), thickness);
 		}
 
-		Vec2 nextStart1, nextStart2;
-		Vec2 start1, start2, end1, end2;
+		Vec2 nextStart1{0, 0};
+		Vec2 nextStart2{0, 0};
+		Vec2 start1{0, 0};
+		Vec2 start2{0, 0};
+		Vec2 end1{0, 0};
+		Vec2 end2{0, 0};
 
 		// calculate the path's global start and end points
 		auto &firstSegment = segments[0];
@@ -105,10 +116,10 @@ public:
 		// handle different end cap styles
 		if (endCapStyle == EndCapStyle::SQUARE) {
 			// extend the start/end points by half the thickness
-			pathStart1 = pathStart1 - (firstSegment.edge1.direction() * thickness);
-			pathStart2 = pathStart2 - (firstSegment.edge2.direction() * thickness);
-			pathEnd1 = pathEnd1 + (lastSegment.edge1.direction() * thickness);
-			pathEnd2 = pathEnd2 + (lastSegment.edge2.direction() * thickness);
+			pathStart1 = Vec2Maths::subtract(pathStart1, Vec2Maths::multiply(firstSegment.edge1.direction(), thickness));
+			pathStart2 = Vec2Maths::subtract(pathStart2, Vec2Maths::multiply(firstSegment.edge2.direction(), thickness));
+			pathEnd1 = Vec2Maths::add(pathEnd1, Vec2Maths::multiply(lastSegment.edge1.direction(), thickness));
+			pathEnd2 = Vec2Maths::add(pathEnd2, Vec2Maths::multiply(lastSegment.edge2.direction(), thickness));
 
 		} else if (endCapStyle == EndCapStyle::ROUND) {
 			// draw half circle end caps
@@ -175,25 +186,30 @@ private:
 	 */
 	static constexpr float roundMinAngle = 0.174533; // ~10 degrees
 
+	template<typename Vec2>
 	struct PolySegment {
-		PolySegment(const LineSegment &center, const Vec2 &thickness) :
+		PolySegment(const LineSegment<Vec2> &center, const Vec2 &thickness) :
 				center(center),
 				// calculate the segment's outer edges by offsetting
 				// the central line by the normal vector
 				// multiplied with the thickness
-				edge1(center + center.normal() * thickness),
-				edge2(center - center.normal() * thickness) {}
 
-		LineSegment center, edge1, edge2;
+				// center + center.normal() * thickness
+				edge1(center + Vec2Maths::multiply(center.normal(), thickness)),
+				edge2(center - Vec2Maths::multiply(center.normal(), thickness)) {}
+
+		LineSegment<Vec2> center, edge1, edge2;
 	};
 
-	static void createJoint(std::vector<Vec2> &vertices, const PolySegment &segment1, const PolySegment &segment2,
+	template<typename Vec2>
+	static void createJoint(std::vector<Vec2> &vertices,
+	                        const PolySegment<Vec2> &segment1, const PolySegment<Vec2> &segment2,
 	                        JointStyle jointStyle, Vec2 &end1, Vec2 &end2, Vec2 &nextStart1, Vec2 &nextStart2) {
 		// calculate the angle between the two line segments
 		auto dir1 = segment1.center.direction();
 		auto dir2 = segment2.center.direction();
 
-		auto angle = Vec2::angle(dir1, dir2);
+		auto angle = Vec2Maths::angle(dir1, dir2);
 
 		// wrap the angle around the 180° mark if it exceeds 90°
 		// for minimum angle detection
@@ -213,8 +229,8 @@ private:
 		if (jointStyle == JointStyle::MITER) {
 			// calculate each edge's intersection point
 			// with the next segment1's central line
-			auto sec1 = LineSegment::intersection(segment1.edge1, segment2.edge1, true);
-			auto sec2 = LineSegment::intersection(segment1.edge2, segment2.edge2, true);
+			auto sec1 = LineSegment<Vec2>::intersection(segment1.edge1, segment2.edge1, true);
+			auto sec2 = LineSegment<Vec2>::intersection(segment1.edge2, segment2.edge2, true);
 
 			// there is always an intersection point,
 			// as we require a minimum angle for mitered joints
@@ -235,7 +251,7 @@ private:
 
 			auto clockwise = x1 * y2 - x2 * y1 < 0;
 
-			const LineSegment *inner1, *inner2, *outer1, *outer2;
+			const LineSegment<Vec2> *inner1, *inner2, *outer1, *outer2;
 
 			// as the normal vector is rotated counter-clockwise,
 			// the first edge lies to the left
@@ -254,7 +270,7 @@ private:
 			}
 
 			// calculate the intersection point of the inner edges
-			auto innerSecOpt = LineSegment::intersection(*inner1, *inner2, false);
+			auto innerSecOpt = LineSegment<Vec2>::intersection(*inner1, *inner2, false);
 
 			auto innerSec = innerSecOpt
 			                ? *innerSecOpt
@@ -316,11 +332,12 @@ private:
 	 * @param end The circle's ending point.
 	 * @param clockwise Whether the circle's rotation is clockwise.
 	 */
+	template<typename Vec2>
 	static void createTriangleFan(std::vector<Vec2> &vertices, Vec2 connectTo, Vec2 origin,
 	                              Vec2 start, Vec2 end, bool clockwise) {
 
-		auto point1 = start - origin;
-		auto point2 = end - origin;
+		auto point1 = Vec2Maths::subtract(start, origin);
+		auto point2 = Vec2Maths::subtract(end, origin);
 
 		// calculate the angle between the two points
 		auto angle1 = atan2(point1.y, point1.x);
@@ -360,7 +377,7 @@ private:
 				endPoint.y = std::sin(rot) * point1.x + std::cos(rot) * point1.y;
 
 				// re-add the rotation origin to the target point
-				endPoint = endPoint + origin;
+				endPoint = Vec2Maths::add(endPoint, origin);
 			}
 
 			// emit the triangle

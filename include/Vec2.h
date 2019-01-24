@@ -4,69 +4,89 @@
 
 namespace crushedpixel {
 
+/**
+ * A two-dimensional float vector.
+ * It exposes the x and y fields
+ * as required by the Polyline2D functions.
+ */
 struct Vec2 {
 	Vec2() :
-			x(0), y(0) {}
+			Vec2(0, 0) {}
 
-	Vec2(const float x, const float y) :
+	Vec2(float x, float y) :
 			x(x), y(y) {}
 
 	float x, y;
-
-	Vec2 withLength(float len) const {
-		auto mag = magnitude();
-		auto factor = mag / len;
-		return *this / factor;
-	}
-
-	Vec2 normalized() const {
-		return withLength(1);
-	}
-
-	float magnitude() const {
-		return std::sqrt(x * x + y * y);
-	}
-
-	Vec2 operator*(const Vec2 &other) const {
-		return {x * other.x, y * other.y};
-	}
-
-	Vec2 operator+(const Vec2 &other) const {
-		return {x + other.x, y + other.y};
-	}
-
-	Vec2 operator-(const Vec2 &other) const {
-		return {x - other.x, y - other.y};
-	}
-
-	Vec2 operator*(float factor) const {
-		return {x * factor, y * factor};
-	}
-
-	Vec2 operator/(float factor) const {
-		return {x / factor, y / factor};
-	}
-
-	/**
-	 * Calculates the dot product of two vectors.
-	 */
-	static float dot(const Vec2 &a, const Vec2 &b) {
-		return a.x * b.x + a.y * b.y;
-	}
-
-	/**
-	 * Calculates the cross product of two vectors.
-	 */
-	static float cross(const Vec2 &a, const Vec2 &b) {
-		return a.x * b.y - a.y * b.x;
-	}
-
-	/**
-	 * Calculates the angle between two vectors.
-	 */
-	static float angle(const Vec2 &a, const Vec2 &b) {
-		return std::acos(dot(a, b) / (a.magnitude() * b.magnitude()));
-	}
 };
+
+namespace Vec2Maths {
+
+template<typename Vec2>
+static Vec2 multiply(const Vec2 &a, const Vec2 &b) {
+	return {a.x * b.x, a.y * b.y};
+}
+
+template<typename Vec2>
+static Vec2 multiply(const Vec2 &vec, float factor) {
+	return {vec.x * factor, vec.y * factor};
+}
+
+template<typename Vec2>
+static Vec2 divide(const Vec2 &vec, float factor) {
+	return {vec.x / factor, vec.y / factor};
+}
+
+template<typename Vec2>
+static Vec2 add(const Vec2 &a, const Vec2 &b) {
+	return {a.x + b.x, a.y + b.y};
+}
+
+template<typename Vec2>
+static Vec2 subtract(const Vec2 &a, const Vec2 &b) {
+	return {a.x - b.x, a.y - b.y};
+}
+
+template<typename Vec2>
+static float magnitude(const Vec2 &vec) {
+	return std::sqrt(vec.x * vec.x + vec.y * vec.y);
+}
+
+template<typename Vec2>
+static Vec2 withLength(const Vec2 &vec, float len) {
+	auto mag = magnitude(vec);
+	auto factor = mag / len;
+	return divide(vec, factor);
+}
+
+template<typename Vec2>
+static Vec2 normalized(const Vec2 &vec) {
+	return withLength(vec, 1);
+}
+
+/**
+ * Calculates the dot product of two vectors.
+ */
+template<typename Vec2>
+static float dot(const Vec2 &a, const Vec2 &b) {
+	return a.x * b.x + a.y * b.y;
+}
+
+/**
+ * Calculates the cross product of two vectors.
+ */
+template<typename Vec2>
+static float cross(const Vec2 &a, const Vec2 &b) {
+	return a.x * b.y - a.y * b.x;
+}
+
+/**
+ * Calculates the angle between two vectors.
+ */
+template<typename Vec2>
+static float angle(const Vec2 &a, const Vec2 &b) {
+	return std::acos(dot(a, b) / (magnitude(a) * magnitude(b)));
+}
+
+} // namespace Vec2Maths
 
 }

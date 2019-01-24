@@ -5,6 +5,7 @@
 
 namespace crushedpixel {
 
+template<typename Vec2>
 struct LineSegment {
 	LineSegment(const Vec2 &a, const Vec2 &b) :
 			a(a), b(b) {}
@@ -15,14 +16,14 @@ struct LineSegment {
 	 * @return A copy of the line segment, offset by the given vector.
 	 */
 	LineSegment operator+(const Vec2 &toAdd) const {
-		return {a + toAdd, b + toAdd};
+		return {Vec2Maths::add(a, toAdd), Vec2Maths::add(b, toAdd)};
 	}
 
 	/**
 	 * @return A copy of the line segment, offset by the given vector.
 	 */
 	LineSegment operator-(const Vec2 &toRemove) const {
-		return {a - toRemove, b - toRemove};
+		return {Vec2Maths::subtract(a, toRemove), Vec2Maths::subtract(b, toRemove)};
 	}
 
 	/**
@@ -33,42 +34,47 @@ struct LineSegment {
 
 		// return the direction vector
 		// rotated by 90 degrees counter-clockwise
-		return Vec2(-dir.y, dir.x);
+		return {-dir.y, dir.x};
 	}
 
 	/**
 	 * @return The line segment's direction vector.
 	 */
-	Vec2 direction() const {
-		auto dX = b.x - a.x;
-		auto dY = b.y - a.y;
+	Vec2 direction(bool normalized = true) const {
+		auto vec = Vec2Maths::subtract(b, a);
 
-		return Vec2(dX, dY).normalized();
+		return normalized
+		       ? Vec2Maths::normalized(vec)
+		       : vec;
 	}
 
 	static std::optional<Vec2> intersection(const LineSegment &a, const LineSegment &b, bool infiniteLines) {
-		auto r = a.b - a.a;
-		auto s = b.b - b.a;
+		// calculate un-normalized direction vectors
+		auto r = a.direction(false);
+		auto s = b.direction(false);
 
-		auto originDist = b.a - a.a;
+		auto originDist = Vec2Maths::subtract(b.a, a.a);
 
-		auto uNumerator = Vec2::cross(originDist, r);
-		auto denominator = Vec2::cross(r, s);
+		auto uNumerator = Vec2Maths::cross(originDist, r);
+		auto denominator = Vec2Maths::cross(r, s);
 
-		if (std::abs(denominator) < 0.0001) {
+		if (std::abs(denominator) < 0.0001f) {
 			// The lines are parallel
 			return std::nullopt;
 		}
 
+		// solve the intersection positions
 		auto u = uNumerator / denominator;
-		auto t = Vec2::cross(originDist, s) / denominator;
+		auto t = Vec2Maths::cross(originDist, s) / denominator;
 
 		if (!infiniteLines && (t < 0 || t > 1 || u < 0 || u > 1)) {
 			// the intersection lies outside of the line segments
 			return std::nullopt;
 		}
 
-		return a.a + (r * t);
+		// calculate the intersection point
+		// a.a + r * t;
+		return Vec2Maths::add(a.a, Vec2Maths::multiply(r, t));
 	}
 };
 
