@@ -2,6 +2,7 @@
 
 #include "LineSegment.h"
 #include <vector>
+#include <iterator>
 
 namespace crushedpixel {
 
@@ -83,6 +84,15 @@ public:
 	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		auto numVerticesBefore = vertices.size();
 
+		create(std::back_inserter(vertices), points, thickness, jointStyle, endCapStyle);
+
+		return vertices.size() - numVerticesBefore;
+	}
+
+	template<typename Vec2, typename OutputIterator>
+	static OutputIterator create(OutputIterator vertices, const std::vector<Vec2> &points, Vec2 thickness,
+	                             JointStyle jointStyle = JointStyle::MITER,
+	                             EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		// operate on half the thickness to make our lives easier
 		thickness = Vec2Maths::divide(thickness, 2);
 
@@ -123,15 +133,15 @@ public:
 
 		} else if (endCapStyle == EndCapStyle::ROUND) {
 			// draw half circle end caps
-			createTriangleFan(vertices, firstSegment.center.a, firstSegment.center.a,
-			                  firstSegment.edge1.a, firstSegment.edge2.a, false);
-			createTriangleFan(vertices, lastSegment.center.b, lastSegment.center.b,
-			                  lastSegment.edge1.b, lastSegment.edge2.b, true);
+			vertices = createTriangleFan(vertices, firstSegment.center.a, firstSegment.center.a,
+			                             firstSegment.edge1.a, firstSegment.edge2.a, false);
+			vertices = createTriangleFan(vertices, lastSegment.center.b, lastSegment.center.b,
+			                             lastSegment.edge1.b, lastSegment.edge2.b, true);
 
 		} else if (endCapStyle == EndCapStyle::JOINED) {
 			// join the last (connecting) segment and the first segment
-			createJoint(vertices, lastSegment, firstSegment, jointStyle,
-			            pathEnd1, pathEnd2, pathStart1, pathStart2);
+			vertices = createJoint(vertices, lastSegment, firstSegment, jointStyle,
+			                       pathEnd1, pathEnd2, pathStart1, pathStart2);
 		}
 
 		// generate mesh data for path segments
@@ -151,24 +161,24 @@ public:
 				end2 = pathEnd2;
 
 			} else {
-				createJoint(vertices, segment, segments[i + 1], jointStyle,
-				            end1, end2, nextStart1, nextStart2);
+				vertices = createJoint(vertices, segment, segments[i + 1], jointStyle,
+				                       end1, end2, nextStart1, nextStart2);
 			}
 
 			// emit vertices
-			vertices.push_back(start1);
-			vertices.push_back(start2);
-			vertices.push_back(end1);
+			*vertices++ = start1;
+			*vertices++ = start2;
+			*vertices++ = end1;
 
-			vertices.push_back(end1);
-			vertices.push_back(start2);
-			vertices.push_back(end2);
+			*vertices++ = end1;
+			*vertices++ = start2;
+			*vertices++ = end2;
 
 			start1 = nextStart1;
 			start2 = nextStart2;
 		}
 
-		return vertices.size() - numVerticesBefore;
+		return vertices;
 	}
 
 private:
@@ -201,10 +211,11 @@ private:
 		LineSegment<Vec2> center, edge1, edge2;
 	};
 
-	template<typename Vec2>
-	static void createJoint(std::vector<Vec2> &vertices,
-	                        const PolySegment<Vec2> &segment1, const PolySegment<Vec2> &segment2,
-	                        JointStyle jointStyle, Vec2 &end1, Vec2 &end2, Vec2 &nextStart1, Vec2 &nextStart2) {
+	template<typename Vec2, typename OutputIterator>
+	static OutputIterator createJoint(OutputIterator vertices,
+	                                  const PolySegment<Vec2> &segment1, const PolySegment<Vec2> &segment2,
+	                                  JointStyle jointStyle, Vec2 &end1, Vec2 &end2,
+	                                  Vec2 &nextStart1, Vec2 &nextStart2) {
 		// calculate the angle between the two line segments
 		auto dir1 = segment1.center.direction();
 		auto dir2 = segment2.center.direction();
@@ -307,19 +318,21 @@ private:
 
 			if (jointStyle == JointStyle::BEVEL) {
 				// simply connect the intersection points
-				vertices.push_back(outer1->b);
-				vertices.push_back(outer2->a);
-				vertices.push_back(innerSec);
+				*vertices++ = outer1->b;
+				*vertices++ = outer2->a;
+				*vertices++ = innerSec;
 
 			} else if (jointStyle == JointStyle::ROUND) {
 				// draw a circle between the ends of the outer edges,
 				// centered at the actual point
 				// with half the line thickness as the radius
-				createTriangleFan(vertices, innerSec, segment1.center.b, outer1->b, outer2->a, clockwise);
+				vertices = createTriangleFan(vertices, innerSec, segment1.center.b, outer1->b, outer2->a, clockwise);
 			} else {
 				assert(false);
 			}
 		}
+
+		return vertices;
 	}
 
 	/**
@@ -332,9 +345,9 @@ private:
 	 * @param end The circle's ending point.
 	 * @param clockwise Whether the circle's rotation is clockwise.
 	 */
-	template<typename Vec2>
-	static void createTriangleFan(std::vector<Vec2> &vertices, Vec2 connectTo, Vec2 origin,
-	                              Vec2 start, Vec2 end, bool clockwise) {
+	template<typename Vec2, typename OutputIterator>
+	static OutputIterator createTriangleFan(OutputIterator vertices, Vec2 connectTo, Vec2 origin,
+	                                        Vec2 start, Vec2 end, bool clockwise) {
 
 		auto point1 = Vec2Maths::subtract(start, origin);
 		auto point2 = Vec2Maths::subtract(end, origin);
@@ -381,12 +394,14 @@ private:
 			}
 
 			// emit the triangle
-			vertices.push_back(startPoint);
-			vertices.push_back(endPoint);
-			vertices.push_back(connectTo);
+			*vertices++ = startPoint;
+			*vertices++ = endPoint;
+			*vertices++ = connectTo;
 
 			startPoint = endPoint;
 		}
+
+		return vertices;
 	}
 };
 
