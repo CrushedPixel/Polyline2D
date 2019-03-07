@@ -47,7 +47,7 @@ public:
 		 * When using this EndCapStyle, don't specify the common start/end point twice,
 		 * as Polyline2D connects the first and last input point itself.
 		 */
-		JOINED
+		JOINT
 	};
 
 	/**
@@ -102,7 +102,7 @@ public:
 			}
 		}
 
-		if (endCapStyle == EndCapStyle::JOINED) {
+		if (endCapStyle == EndCapStyle::JOINT) {
 			// create a connecting segment from the last to the first point
 
 			auto &point1 = points[points.size() - 1];
@@ -151,7 +151,7 @@ public:
 			createTriangleFan(vertices, lastSegment.center.b, lastSegment.center.b,
 			                  lastSegment.edge1.b, lastSegment.edge2.b, true);
 
-		} else if (endCapStyle == EndCapStyle::JOINED) {
+		} else if (endCapStyle == EndCapStyle::JOINT) {
 			// join the last (connecting) segment and the first segment
 			createJoint(vertices, lastSegment, firstSegment, jointStyle,
 			            pathEnd1, pathEnd2, pathStart1, pathStart2);
