@@ -92,12 +92,32 @@ public:
 		// create poly segments from the points
 		std::vector<PolySegment<Vec2>> segments;
 		for (size_t i = 0; i + 1 < points.size(); i++) {
-			segments.emplace_back(LineSegment<Vec2>(points[i], points[i + 1]), thickness);
+			auto &point1 = points[i];
+			auto &point2 = points[i + 1];
+
+			// to avoid division-by-zero errors,
+			// only create a line segment for non-identical points
+			if (!Vec2Maths::equal(point1, point2)) {
+				segments.emplace_back(LineSegment<Vec2>(point1, point2), thickness);
+			}
 		}
 
 		if (endCapStyle == EndCapStyle::JOINED) {
 			// create a connecting segment from the last to the first point
-			segments.emplace_back(LineSegment<Vec2>(points[points.size() - 1], points[0]), thickness);
+
+			auto &point1 = points[points.size() - 1];
+			auto &point2 = points[0];
+
+			// to avoid division-by-zero errors,
+			// only create a line segment for non-identical points
+			if (!Vec2Maths::equal(point1, point2)) {
+				segments.emplace_back(LineSegment<Vec2>(point1, point2), thickness);
+			}
+		}
+
+		if (segments.empty()) {
+			// handle the case of insufficient input points
+			return vertices;
 		}
 
 		Vec2 nextStart1{0, 0};
@@ -236,10 +256,11 @@ private:
 			auto sec1 = LineSegment<Vec2>::intersection(segment1.edge1, segment2.edge1, true);
 			auto sec2 = LineSegment<Vec2>::intersection(segment1.edge2, segment2.edge2, true);
 
-			// there is always an intersection point,
-			// as we require a minimum angle for mitered joints
-			end1 = *sec1;
-			end2 = *sec2;
+			end1 = sec1 ? *sec1 : segment1.edge1.b;
+			end2 = sec2 ? *sec2 : segment1.edge2.b;
+
+			//end1 = *sec1;
+			//end2 = *sec2;
 
 			nextStart1 = end1;
 			nextStart2 = end2;

@@ -24,6 +24,11 @@ struct Vec2 {
 namespace Vec2Maths {
 
 template<typename Vec2>
+static bool equal(const Vec2 &a, const Vec2 &b) {
+	return a.x == b.x && a.y == b.y;
+}
+
+template<typename Vec2>
 static Vec2 multiply(const Vec2 &a, const Vec2 &b) {
 	return {a.x * b.x, a.y * b.y};
 }
