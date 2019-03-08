@@ -61,9 +61,12 @@ public:
 	 *              Must have public non-const float fields "x" and "y".
 	 *              Must have a two-args constructor taking x and y values.
 	 *              See crushedpixel::Vec2 for a type that satisfies these requirements.
+	 * @tparam InputCollection The collection type of the input points.
+	 *                         Must contain elements of type Vec2.
+	 *                         Must expose size() and operator[] functions.
 	 */
-	template<typename Vec2>
-	static std::vector<Vec2> create(const std::vector<Vec2> &points, float thickness,
+	template<typename Vec2, typename InputCollection = std::vector<Vec2>>
+	static std::vector<Vec2> create(const InputCollection &points, float thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
 	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		std::vector<Vec2> vertices;
@@ -71,8 +74,8 @@ public:
 		return vertices;
 	}
 
-	template<typename Vec2>
-	static size_t create(std::vector<Vec2> &vertices, const std::vector<Vec2> &points, float thickness,
+	template<typename Vec2, typename InputCollection>
+	static size_t create(std::vector<Vec2> &vertices, const InputCollection &points, float thickness,
 	                     JointStyle jointStyle = JointStyle::MITER,
 	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		auto numVerticesBefore = vertices.size();
@@ -82,8 +85,8 @@ public:
 		return vertices.size() - numVerticesBefore;
 	}
 
-	template<typename Vec2, typename OutputIterator>
-	static OutputIterator create(OutputIterator vertices, const std::vector<Vec2> &points, float thickness,
+	template<typename Vec2, typename InputCollection, typename OutputIterator>
+	static OutputIterator create(OutputIterator vertices, const InputCollection &points, float thickness,
 	                             JointStyle jointStyle = JointStyle::MITER,
 	                             EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		// operate on half the thickness to make our lives easier
