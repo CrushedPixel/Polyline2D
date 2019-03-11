@@ -65,7 +65,7 @@ public:
 	 *                         Must contain elements of type Vec2.
 	 *                         Must expose size() and operator[] functions.
 	 */
-	template<typename Vec2, typename InputCollection = std::vector<Vec2>>
+	template<typename Vec2, typename InputCollection>
 	static std::vector<Vec2> create(const InputCollection &points, float thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
 	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
@@ -80,7 +80,7 @@ public:
 	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
 		auto numVerticesBefore = vertices.size();
 
-		create(std::back_inserter(vertices), points, thickness, jointStyle, endCapStyle);
+		create<Vec2, InputCollection>(std::back_inserter(vertices), points, thickness, jointStyle, endCapStyle);
 
 		return vertices.size() - numVerticesBefore;
 	}
