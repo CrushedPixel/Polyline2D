@@ -74,6 +74,15 @@ public:
 		return vertices;
 	}
 
+	template<typename Vec2>
+	static std::vector<Vec2> create(const std::vector<Vec2> &points, float thickness,
+	                                JointStyle jointStyle = JointStyle::MITER,
+	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+		std::vector<Vec2> vertices;
+		create<Vec2, std::vector<Vec2>>(vertices, points, thickness, jointStyle, endCapStyle);
+		return vertices;
+	}
+
 	template<typename Vec2, typename InputCollection>
 	static size_t create(std::vector<Vec2> &vertices, const InputCollection &points, float thickness,
 	                     JointStyle jointStyle = JointStyle::MITER,
