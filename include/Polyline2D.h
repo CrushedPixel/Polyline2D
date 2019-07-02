@@ -56,6 +56,11 @@ public:
 	 * @param thickness The path's thickness.
 	 * @param jointStyle The path's joint style.
 	 * @param endCapStyle The path's end cap style.
+	 * @param allowOverlap Whether to allow overlapping vertices.
+	 * 					   This yields better results when dealing with paths
+	 * 					   whose points have a distance smaller than the thickness,
+	 * 					   but may introduce overlapping vertices,
+	 * 					   which is undesirable when rendering transparent paths.
 	 * @return The vertices describing the path.
 	 * @tparam Vec2 The vector type to use for the vertices.
 	 *              Must have public non-const float fields "x" and "y".
@@ -68,28 +73,32 @@ public:
 	template<typename Vec2, typename InputCollection>
 	static std::vector<Vec2> create(const InputCollection &points, float thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
-	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+	                                EndCapStyle endCapStyle = EndCapStyle::BUTT,
+	                                bool allowOverlap = false) {
 		std::vector<Vec2> vertices;
-		create(vertices, points, thickness, jointStyle, endCapStyle);
+		create(vertices, points, thickness, jointStyle, endCapStyle, allowOverlap);
 		return vertices;
 	}
 
 	template<typename Vec2>
 	static std::vector<Vec2> create(const std::vector<Vec2> &points, float thickness,
 	                                JointStyle jointStyle = JointStyle::MITER,
-	                                EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+	                                EndCapStyle endCapStyle = EndCapStyle::BUTT,
+	                                bool allowOverlap = false) {
 		std::vector<Vec2> vertices;
-		create<Vec2, std::vector<Vec2>>(vertices, points, thickness, jointStyle, endCapStyle);
+		create<Vec2, std::vector<Vec2>>(vertices, points, thickness, jointStyle, endCapStyle, allowOverlap);
 		return vertices;
 	}
 
 	template<typename Vec2, typename InputCollection>
 	static size_t create(std::vector<Vec2> &vertices, const InputCollection &points, float thickness,
 	                     JointStyle jointStyle = JointStyle::MITER,
-	                     EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+	                     EndCapStyle endCapStyle = EndCapStyle::BUTT,
+	                     bool allowOverlap = false) {
 		auto numVerticesBefore = vertices.size();
 
-		create<Vec2, InputCollection>(std::back_inserter(vertices), points, thickness, jointStyle, endCapStyle);
+		create<Vec2, InputCollection>(std::back_inserter(vertices), points, thickness,
+		                              jointStyle, endCapStyle, allowOverlap);
 
 		return vertices.size() - numVerticesBefore;
 	}
@@ -97,7 +106,8 @@ public:
 	template<typename Vec2, typename InputCollection, typename OutputIterator>
 	static OutputIterator create(OutputIterator vertices, const InputCollection &points, float thickness,
 	                             JointStyle jointStyle = JointStyle::MITER,
-	                             EndCapStyle endCapStyle = EndCapStyle::BUTT) {
+	                             EndCapStyle endCapStyle = EndCapStyle::BUTT,
+	                             bool allowOverlap = false) {
 		// operate on half the thickness to make our lives easier
 		thickness /= 2;
 
@@ -166,7 +176,7 @@ public:
 		} else if (endCapStyle == EndCapStyle::JOINT) {
 			// join the last (connecting) segment and the first segment
 			createJoint(vertices, lastSegment, firstSegment, jointStyle,
-			            pathEnd1, pathEnd2, pathStart1, pathStart2);
+			            pathEnd1, pathEnd2, pathStart1, pathStart2, allowOverlap);
 		}
 
 		// generate mesh data for path segments
@@ -187,7 +197,7 @@ public:
 
 			} else {
 				createJoint(vertices, segment, segments[i + 1], jointStyle,
-				            end1, end2, nextStart1, nextStart2);
+				            end1, end2, nextStart1, nextStart2, allowOverlap);
 			}
 
 			// emit vertices
@@ -240,7 +250,8 @@ private:
 	static OutputIterator createJoint(OutputIterator vertices,
 	                                  const PolySegment<Vec2> &segment1, const PolySegment<Vec2> &segment2,
 	                                  JointStyle jointStyle, Vec2 &end1, Vec2 &end2,
-	                                  Vec2 &nextStart1, Vec2 &nextStart2) {
+	                                  Vec2 &nextStart1, Vec2 &nextStart2,
+	                                  bool allowOverlap) {
 		// calculate the angle between the two line segments
 		auto dir1 = segment1.center.direction();
 		auto dir2 = segment2.center.direction();
@@ -307,7 +318,7 @@ private:
 			}
 
 			// calculate the intersection point of the inner edges
-			auto innerSecOpt = LineSegment<Vec2>::intersection(*inner1, *inner2, false);
+			auto innerSecOpt = LineSegment<Vec2>::intersection(*inner1, *inner2, allowOverlap);
 
 			auto innerSec = innerSecOpt
 			                ? *innerSecOpt
