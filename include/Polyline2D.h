@@ -13,7 +13,7 @@ public:
 		 * Corners are drawn with sharp joints.
 		 * If the joint's outer angle is too large,
 		 * the joint is drawn as beveled instead,
-		 * to avoid the mitre extending too far out.
+		 * to avoid the miter extending too far out.
 		 */
 		MITER,
 		/**
@@ -275,15 +275,12 @@ private:
 
 		if (jointStyle == JointStyle::MITER) {
 			// calculate each edge's intersection point
-			// with the next segment1's central line
+			// with the next segment's central line
 			auto sec1 = LineSegment<Vec2>::intersection(segment1.edge1, segment2.edge1, true);
 			auto sec2 = LineSegment<Vec2>::intersection(segment1.edge2, segment2.edge2, true);
 
 			end1 = sec1 ? *sec1 : segment1.edge1.b;
 			end2 = sec2 ? *sec2 : segment1.edge2.b;
-
-			//end1 = *sec1;
-			//end2 = *sec2;
 
 			nextStart1 = end1;
 			nextStart2 = end2;
