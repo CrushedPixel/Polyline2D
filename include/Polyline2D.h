@@ -3,6 +3,7 @@
 #include "LineSegment.h"
 #include <vector>
 #include <iterator>
+#include <cassert>
 
 namespace crushedpixel {
 
