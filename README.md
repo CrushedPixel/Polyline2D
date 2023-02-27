@@ -48,3 +48,8 @@ make install
 ```
 
 You can then include the header file using `#include <Polyline2D/Polyline2D.h>`.
+
+## Attribution and similar projects
+The concepts and maths behind this project are largely inspired by [this amazing blog post](https://artgrammer.blogspot.com/2011/07/drawing-polylines-by-tessellation.html) by "To be an Artgrammer".
+
+If you're looking to generate 2d Polylines in a Unity project, check out the original author's project [vaser-unity](https://github.com/tyt2y3/vaser-unity).
